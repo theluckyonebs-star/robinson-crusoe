@@ -355,7 +355,7 @@ export default function App() {
     <div className="app">
       <Header state={state} onNewGame={() => { setGameStarted(false); setSetupStep("players"); }} />
       <PhaseTracker phase={state.phase} />
-      <StatsBar state={state} reserved={reserved} />
+      <StatsBar state={state} reserved={reserved} onBuildPile={() => dispatch({ type: "BUILD_WOOD_PILE" })} />
       <MoraleBar morale={state.morale} />
 
       <EventBook
@@ -379,6 +379,15 @@ export default function App() {
             onTileUnassign={onTileUnassign}
           />
 
+          {/* Quick-continue: always visible right below the map */}
+          {[...AUTO_PHASES, "actionDone" as const].includes(state.phase) && (
+            <div className="quick-continue">
+              <button className="primary" onClick={() => dispatch({ type: "ADVANCE_PHASE" })}>
+                {continueLabel(state)}
+              </button>
+            </div>
+          )}
+
           {gatherChoice && (
             <GatherChoice
               tile={state.tiles.find((t) => tileKey(t.q, t.r) === gatherChoice)!}
@@ -401,11 +410,6 @@ export default function App() {
             />
           )}
 
-          <Characters
-            state={state}
-            onUseAbility={(charId, abilityId) => dispatch({ type: "USE_ABILITY", charId, abilityId })}
-          />
-
           <HeldTreasures
             treasures={state.heldTreasures}
             interactive={state.phase === "action"}
@@ -414,10 +418,6 @@ export default function App() {
 
           {state.phase === "event" && (
             <EventPhasePanel state={state} onContinue={() => dispatch({ type: "ADVANCE_PHASE" })} />
-          )}
-
-          {state.scenarioId === "castaways" && (
-            <WoodPile state={state} onBuild={() => dispatch({ type: "BUILD_WOOD_PILE" })} interactive={state.phase === "action"} />
           )}
 
           {state.phase === "action" && (
@@ -457,6 +457,11 @@ export default function App() {
               onUnassign={(p) => dispatch({ type: "UNASSIGN_PAWN", pawnId: p })}
             />
           )}
+          <Characters
+            state={state}
+            onUseAbility={(charId, abilityId) => dispatch({ type: "USE_ABILITY", charId, abilityId })}
+          />
+
           <button className="log-toggle" onClick={() => setLogOpen(true)} title="Open game log">
             📋 <span className="log-toggle-label">Log</span>
             <span className="log-toggle-count">{state.log.length}</span>
@@ -514,7 +519,12 @@ function PhaseTracker({ phase }: { phase: Phase }) {
   );
 }
 
-function StatsBar({ state, reserved }: { state: GameState; reserved: Resources }) {
+function StatsBar({ state, reserved, onBuildPile }: {
+  state: GameState;
+  reserved: Resources;
+  onBuildPile?: () => void;
+}) {
+  const WOOD_PILE_COSTS = [1, 2, 3, 4, 5];
   return (
     <div className="stats">
       <div className="stat-group">
@@ -532,6 +542,39 @@ function StatsBar({ state, reserved }: { state: GameState; reserved: Resources }
         <Badge label="Palisade" value={String(state.camp.palisadeLevel)} />
         <Badge label="Weapon" value={String(state.camp.weaponLevel)} />
       </div>
+      {state.scenarioId === "castaways" && (() => {
+        const stage = state.woodPileStage;
+        const doneThisRound = state.woodPileLastBuiltRound >= state.round;
+        const nextCost = stage < 5 ? WOOD_PILE_COSTS[stage] : 0;
+        const canAffordNext = state.resources.wood >= nextCost;
+        const fireBuilt = state.builtItems.includes("signal-fire");
+        return (
+          <div className="stat-group castaways-progress">
+            <div className="pile-mini-header">
+              <span className="pile-mini-label">🔥 Signal Pile</span>
+              <span className="pile-mini-val">{stage}/5</span>
+            </div>
+            <div className="pile-mini-stages">
+              {WOOD_PILE_COSTS.map((_, i) => (
+                <div key={i} className={`pile-mini-dot ${i < stage ? "built" : ""}`} />
+              ))}
+            </div>
+            <div className={`pile-fire-req ${fireBuilt ? "met" : "unmet"}`}>
+              {fireBuilt ? "✓" : "✗"} Signal Fire
+            </div>
+            {stage < 5 && onBuildPile && (
+              <button
+                className="tiny pile-build-btn"
+                disabled={doneThisRound || !canAffordNext}
+                onClick={onBuildPile}
+                title={doneThisRound ? "Already built this turn" : !canAffordNext ? `Need ${nextCost}🪵` : `Build stage ${stage + 1}`}
+              >
+                {doneThisRound ? "Built" : `+Stage (${nextCost}🪵)`}
+              </button>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1317,17 +1360,24 @@ function ActionPanel({
     }
   }
 
-  const activeAbilities = state.characters.flatMap((c) =>
-    ABILITIES[c.role]
-      .filter((ab) => ab.kind === "active")
-      .map((ab) => ({ c, ab, used: state.usedAbilities.includes(`${c.id}:${ab.id}`) })),
-  );
-
-  const basics = ITEMS.filter((i) => i.tier === "basic");
-  const specials = ITEMS.filter((i) => i.tier === "special");
   // Character inventions: show only for active characters in the current game.
   const activeRoles = new Set(state.characters.filter((c) => !c.isCompanion).map((c) => c.role));
   const characterItems = CHARACTER_ITEMS.filter((i) => i.ownedBy && activeRoles.has(i.ownedBy));
+  // All inventions ordered by function: weapon → gathering → production → survival → fire → defense → character
+  const ITEM_ORDER = [
+    "spear","waraxe",              // combat/weapon
+    "hatchet","basket","toolkit",  // gathering
+    "garden","fishtrap","greenhouse","smokehouse", // production/food
+    "healerkit","dryingrack",      // survival
+    "firepit","signal-fire","fireshrine","totem", // fire
+    "outpost","watchtower","stormshelter",         // defense/weather
+    "tidecache",                   // misc
+  ];
+  const allInventions = [
+    ...ITEM_ORDER.map(id => [...ITEMS, ...CHARACTER_ITEMS].find(i => i.id === id)).filter(Boolean) as (typeof ITEMS[number])[],
+    // anything not in the order list
+    ...[...ITEMS, ...characterItems].filter(i => !ITEM_ORDER.includes(i.id)),
+  ].filter((item, idx, arr) => arr.findIndex(x => x.id === item.id) === idx);
 
   return (
     <div className="panel">
@@ -1371,23 +1421,6 @@ function ActionPanel({
           <button disabled={!hasPawns} onClick={() => onAssign("rest")} title="Safe. Recover 1 health.">💤 Rest</button>
         </div>
       </div>
-
-      {activeAbilities.length > 0 && (
-        <div className="subsection">
-          <h3>Use abilities</h3>
-          <div className="action-buttons">
-            {activeAbilities.map(({ c, ab, used }) => {
-              const cost = ab.cost ?? 0;
-              const disabled = used || c.determination < cost || c.health <= 0;
-              return (
-                <button key={`${c.id}:${ab.id}`} disabled={disabled} onClick={() => onUseAbility(c.id, ab.id)} title={ab.description}>
-                  ✊ {c.name}: {ab.name} {used ? "(used)" : `(${cost}✊)`}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="subsection">
         <h3>Hunt <span className="muted small">— explore tiles to discover beasts</span></h3>
@@ -1491,34 +1524,14 @@ function ActionPanel({
           })}
         </div>
 
-        <h3>Inventions — basic</h3>
+        <h3>Inventions</h3>
         <div className="item-cards">
-          {basics.map((item) => {
+          {allInventions.map((item) => {
             const ids = state.assignments.filter(a => a.action === "build" && a.itemId === item.id).flatMap(a => a.pawnIds);
             return <ItemCard key={item.id} item={item} state={state} available={available} pawnCount={ids.length} assignedPawnIds={ids} hasPawns={hasPawns} onAssign={onAssign} onUnassign={onUnassign} />;
           })}
         </div>
-
-        <h3>Inventions — special</h3>
-        <div className="item-cards">
-          {specials.map((item) => {
-            const ids = state.assignments.filter(a => a.action === "build" && a.itemId === item.id).flatMap(a => a.pawnIds);
-            return <ItemCard key={item.id} item={item} state={state} available={available} pawnCount={ids.length} assignedPawnIds={ids} hasPawns={hasPawns} onAssign={onAssign} onUnassign={onUnassign} />;
-          })}
-        </div>
-
-        {characterItems.length > 0 && (
-          <>
-            <h3>Character inventions</h3>
-            <div className="item-cards">
-              {characterItems.map((item) => {
-                const ids = state.assignments.filter(a => a.action === "build" && a.itemId === item.id).flatMap(a => a.pawnIds);
-                return <ItemCard key={item.id} item={item} state={state} available={available} pawnCount={ids.length} assignedPawnIds={ids} hasPawns={hasPawns} onAssign={onAssign} onUnassign={onUnassign} />;
-              })}
-            </div>
-          </>
-        )}
-        <p className="muted small">1 pawn = risky ({pct(ACTION_RISK.build.success)} success, {pct(ACTION_RISK.build.injury)} injury chance). 2 pawns = secure.</p>
+        <p className="muted small">1 pawn = risky ({pct(ACTION_RISK.build.success)} success, {pct(ACTION_RISK.build.injury)} injury). 2 pawns = secure.</p>
       </div>
 
       <button className="primary" onClick={onResolve}>Resolve actions</button>
