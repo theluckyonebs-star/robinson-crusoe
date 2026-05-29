@@ -1162,28 +1162,39 @@ button.tiny {
   margin: 6px 0;
 }
 
-/* ---- Castaways mini progress in stats bar ---- */
+/* ---- Castaways signal pile tracker (stats bar) ---- */
 .castaways-progress {
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  padding: 4px 8px;
-  min-width: 64px;
+  gap: 3px;
+  padding: 6px 10px;
+  min-width: 80px;
+  background: rgba(217,164,65,0.08);
+  border: 1px solid rgba(217,164,65,0.3);
+  border-radius: 8px;
+}
+.pile-mini-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 .pile-mini-label {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: var(--muted);
+}
+.pile-mini-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
 }
 .pile-mini-stages {
   display: flex;
-  gap: 3px;
+  gap: 4px;
 }
 .pile-mini-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--line);
   border: 1px solid var(--line);
@@ -1191,11 +1202,7 @@ button.tiny {
 .pile-mini-dot.built {
   background: var(--accent);
   border-color: var(--accent);
-}
-.pile-mini-val {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent);
+  box-shadow: 0 0 4px rgba(217,164,65,0.5);
 }
 .pile-fire-status { font-size: 13px; }
 .pile-fire-status.lit { filter: brightness(1.4); }
@@ -1286,6 +1293,31 @@ button.tiny {
   min-width: 0;
   flex: 1 1 100%;
   max-width: 100%;
+}
+
+.char-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.char-det-inline {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.hearts-compact {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0px;
+  font-size: 11px;
+  overflow: hidden;
+  margin-bottom: 4px;
+  line-height: 1;
 }
 
 .character.dead {

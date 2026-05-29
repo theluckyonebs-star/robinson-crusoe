@@ -20,7 +20,7 @@ export const TREASURE_TEMPLATES: TreasureTemplate[] = [
   { templateId: "t-mirror", name: "Signal Mirror", description: "+1 morale.", effect: { kind: "changeMorale", amount: 1 } },
   { templateId: "t-charm", name: "Lucky Charm", description: "+2 determination (shared out from first player).", effect: { kind: "changeDetermination", amount: 2 } },
   { templateId: "t-bundle", name: "Wrapped Bundle", description: "+1 hide.", effect: { kind: "gainResource", resource: "hide", amount: 1 } },
-  { templateId: "t-pelt", name: "Tanned Pelt", description: "+1 fur.", effect: { kind: "gainResource", resource: "fur", amount: 1 } },
+  { templateId: "t-leather", name: "Cured Hide", description: "+1 leather.", effect: { kind: "gainResource", resource: "hide", amount: 1 } },
 ];
 
 /**

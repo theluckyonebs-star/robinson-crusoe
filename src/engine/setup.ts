@@ -69,7 +69,7 @@ function makeDog(): Character {
 }
 
 function emptyResources(): Resources {
-  return { wood: 0, food: 0, hide: 0, fur: 0 };
+  return { wood: 0, food: 0, hide: 0 };
 }
 
 export function pawnsForRound(characters: Character[]): string[] {

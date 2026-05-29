@@ -4,10 +4,12 @@ import {
   ACTION_RISK,
   BIOME_ICONS,
   BIOME_LABELS,
+  BASIC_ITEMS,
   BUILD_SPECS,
   scaledBuildCost,
   CHARACTER_ITEMS,
   ITEMS,
+  SPECIAL_ITEMS,
   MORALE_MAX,
   MORALE_MIN,
   PHASE_LABELS,
@@ -47,10 +49,24 @@ import {
 } from "@engine";
 import { useGame } from "@ui/useGame";
 
-const RESOURCE_ICON: Record<ResourceType, string> = { wood: "🪵", food: "🍖", hide: "🧤", fur: "🧶" };
+const RESOURCE_ICON: Record<ResourceType, string> = { wood: "🪵", food: "🍖", hide: "🧤" };
+
+/** Represent a cost as repeated emojis (e.g. 2 wood → "🪵🪵"). Numbers only above 5. */
+function emojiCost(resource: ResourceType, count: number): string {
+  if (count <= 0) return "";
+  const icon = RESOURCE_ICON[resource];
+  return count <= 5 ? icon.repeat(count) : `${count}${icon}`;
+}
+
+/** Format a Partial<Resources> cost as emoji strings joined by spaces. */
+function costStr(cost: Partial<Resources>): string {
+  return (Object.keys(cost) as ResourceType[])
+    .filter((r) => (cost[r] ?? 0) > 0)
+    .map((r) => emojiCost(r, cost[r]!))
+    .join(" ");
+}
 const BUILD_TARGETS: BuildTarget[] = ["shelter", "roof", "palisade", "weapon"];
 const AUTO_PHASES: Phase[] = ["morale", "production", "actionDone", "weather", "night"];
-const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 function effectLabel(e: Effect): string {
   switch (e.kind) {
@@ -111,7 +127,7 @@ function assignmentCost(state: GameState, a: Assignment): Partial<Resources> {
 }
 
 function reservedResources(state: GameState): Resources {
-  const r: Resources = { wood: 0, food: 0, hide: 0, fur: 0 };
+  const r: Resources = { wood: 0, food: 0, hide: 0 };
   for (const a of state.assignments) {
     const c = assignmentCost(state, a);
     for (const k of Object.keys(c) as ResourceType[]) r[k] += c[k] ?? 0;
@@ -120,7 +136,7 @@ function reservedResources(state: GameState): Resources {
 }
 
 function subtract(a: Resources, b: Resources): Resources {
-  return { wood: a.wood - b.wood, food: a.food - b.food, hide: a.hide - b.hide, fur: a.fur - b.fur };
+  return { wood: a.wood - b.wood, food: a.food - b.food, hide: a.hide - b.hide };
 }
 
 // ---- App --------------------------------------------------------------------
@@ -379,8 +395,8 @@ export default function App() {
             onTileUnassign={onTileUnassign}
           />
 
-          {/* Quick-continue: always visible right below the map */}
-          {[...AUTO_PHASES, "actionDone" as const].includes(state.phase) && (
+          {/* Quick-continue: always visible right below the map for every non-action phase */}
+          {state.phase !== "action" && state.phase !== "gameOver" && (
             <div className="quick-continue">
               <button className="primary" onClick={() => dispatch({ type: "ADVANCE_PHASE" })}>
                 {continueLabel(state)}
@@ -560,7 +576,7 @@ function StatsBar({ state, reserved, onBuildPile }: {
               ))}
             </div>
             <div className={`pile-fire-req ${fireBuilt ? "met" : "unmet"}`}>
-              {fireBuilt ? "✓" : "✗"} Signal Fire
+              {fireBuilt ? "✓" : "✗"} 🚨 Signal Fire
             </div>
             {stage < 5 && onBuildPile && (
               <button
@@ -617,11 +633,11 @@ function MoraleBar({ morale }: { morale: number }) {
 function RequirementChips({ req }: { req: ResolveRequirement }) {
   return (
     <span className="req-chips">
-      {req.pawns > 0 && <span className="req-chip">👤 ×{req.pawns}</span>}
+      {req.pawns > 0 && <span className="req-chip">{"👤".repeat(Math.min(req.pawns, 5))}</span>}
       {req.resources &&
         (Object.keys(req.resources) as ResourceType[]).map((r) => (
           <span className="req-chip" key={r}>
-            {req.resources![r]} {RESOURCE_ICON[r]}
+            {emojiCost(r, req.resources![r] ?? 0)}
           </span>
         ))}
     </span>
@@ -810,12 +826,8 @@ function HexMap({
   return (
     <div className="panel map-panel">
       <h2>The Island</h2>
-      {interactive && (
-        <p className="muted small">
-          {hasPawn
-            ? "Click a discovered tile to gather, or a fog-edge tile to explore."
-            : "All pawns are assigned."}
-        </p>
+      {interactive && !hasPawn && (
+        <p className="muted small">All pawns assigned.</p>
       )}
       <svg className="hexmap" viewBox={`${minX} ${minY} ${vbW} ${vbH}`} role="img" aria-label="island map">
         {/* Pass 1: hexagon bases only (so icons aren't hidden under neighboring tiles) */}
@@ -907,7 +919,6 @@ function HexMap({
           );
         })}
       </svg>
-      <p className="muted small">Click a tile to gather/explore. 1 pawn = risky, 2 = safe.</p>
     </div>
   );
 }
@@ -971,32 +982,32 @@ function CharacterCard({
   if (c.isCompanion) {
     return (
       <div className={`character companion-card ${dead ? "dead" : ""}`}>
-        <div className="character-name">
-          {c.companionType === "friday" ? "🏃" : "🐕"} {c.name}
+        <div className="char-header">
+          <span className="character-name">{c.companionType === "friday" ? "🏃" : "🐕"} {c.name}</span>
         </div>
-        {c.invincible ? (
-          <div className="companion-invincible">🛡️ Invincible</div>
-        ) : (
-          <div className="hearts" title={`${c.health}/${c.maxHealth} lives`}>
-            {Array.from({ length: c.maxHealth }, (_, i) => (
-              <span key={i} className={i < c.health ? "heart full" : "heart empty"}>{i < c.health ? "❤️" : "🖤"}</span>
+        <div className="hearts" style={{fontSize:"11px"}}>
+          {c.invincible ? <span className="companion-invincible">🛡️ Invincible</span>
+            : Array.from({ length: c.maxHealth }, (_, i) => (
+              <span key={i} className={i < c.health ? "heart full" : "heart empty"} style={{fontSize:"10px"}}>
+                {i < c.health ? "❤️" : "🖤"}
+              </span>
             ))}
-          </div>
-        )}
-        <div className="companion-role">
-          {c.companionType === "friday" ? "Can do anything · immune to weather/hunger/morale" : "Hunt & Explore only · invincible"}
         </div>
-        <div className="companion-role muted">{c.companionType === "friday" ? "Friday can be hurt by risky actions & events." : ""}</div>
+        <div className="companion-role muted" style={{fontSize:"10px"}}>
+          {c.companionType === "friday" ? "Free agent · immune to environment · risky/events can wound" : "Hunt & Explore · invincible"}
+        </div>
       </div>
     );
   }
   return (
     <div className={`character ${dead ? "dead" : ""}`}>
-      <div className="character-name">
-        {c.name}
-        {isFirstPlayer && <span className="crown" title="First player">👑</span>}
+      <div className="char-header">
+        <span className="character-name">
+          {c.name}{isFirstPlayer && <span className="crown" title="First player">👑</span>}
+        </span>
+        <span className="char-det-inline" title="Determination">{c.determination > 0 ? "✊".repeat(Math.min(c.determination, 6)) : "—"}</span>
       </div>
-      <div className="hearts" title={`${c.health}/${c.maxHealth} health`}>
+      <div className="hearts-compact">
         {Array.from({ length: c.maxHealth }, (_, i) => {
           const value = i + 1;
           const filled = i < c.health;
@@ -1004,12 +1015,11 @@ function CharacterCard({
           return (
             <span key={i} className="heart-pip">
               <span className={filled ? "heart full" : "heart empty"}>{filled ? "❤️" : "🖤"}</span>
-              {isMark && <span className="morale-mark" title="Wounding to here costs the team 1 morale">▾</span>}
+              {isMark && <span className="morale-mark">▾</span>}
             </span>
           );
         })}
       </div>
-      <div className="char-det" title="Determination tokens">✊ ×{c.determination}</div>
       <div className="abilities">
         {ABILITIES[c.role].map((ab) => (
           <AbilityRow
@@ -1046,15 +1056,15 @@ function AbilityRow({
     <div className="ability">
       <div className="ability-head">
         <span className="ability-name">{ability.name}</span>
-        <span className={`ability-tag ${ability.kind}`}>{isActive ? `active · ${cost}✊` : "passive"}</span>
+        <span className={`ability-tag ${ability.kind}`}>{isActive ? "active" : "passive"}</span>
       </div>
       <div className="ability-desc">{ability.description}</div>
       {ability.effects && (
         <div className="ability-effects">{ability.effects.map((e, i) => <span key={i} className="eff-chip">{effectLabel(e)}</span>)}</div>
       )}
       {isActive && interactive && (
-        <button className="tiny" disabled={!canUse} onClick={onUse}>
-          {used ? "Used this round" : `Use (${cost}✊)`}
+        <button className="tiny" disabled={!canUse} onClick={onUse} title={ability.description}>
+          {used ? "✓" : "✊".repeat(Math.min(cost, 5))}
         </button>
       )}
     </div>
@@ -1088,19 +1098,15 @@ function EventPhasePanel({ state, onContinue }: { state: GameState; onContinue: 
         </div>
       )}
       {fellOff && <div className="falloff-alert">⚠ {fellOff}</div>}
-      <button className="primary small-primary" style={{marginTop:6}} onClick={onContinue}>{continueLabel(state)}</button>
     </div>
   );
 }
 
-function PhasePanel({ state, onContinue }: { state: GameState; onContinue: () => void }) {
+function PhasePanel({ state, onContinue: _onContinue }: { state: GameState; onContinue: () => void }) {
   const title = state.phase === "actionDone" ? "Actions resolved" : `${PHASE_LABELS[state.phase]} phase`;
   return (
     <div className="panel">
-      <div className="panel-header-row">
-        <h2 style={{margin:0}}>{title}</h2>
-        <button className="primary small-primary" onClick={onContinue}>{continueLabel(state)}</button>
-      </div>
+      <h2>{title}</h2>
       <ul className="summary">
         {state.phaseSummary.map((line, i) => (
           <li key={i} className={line.startsWith("  ") ? "sub" : ""}>{line.trim()}</li>
@@ -1307,7 +1313,6 @@ function BiomePanel({ state }: { state: GameState }) {
   return (
     <div className="biome-panel">
       <h3>Discovered Biomes</h3>
-      <p className="muted small" style={{marginBottom:6}}>Explore tiles to unlock biomes — some inventions require them.</p>
       <div className="biome-grid">
         {ALL_BIOMES.map((b) => {
           const disc = biomeDiscovered(state, b);
@@ -1363,21 +1368,8 @@ function ActionPanel({
   // Character inventions: show only for active characters in the current game.
   const activeRoles = new Set(state.characters.filter((c) => !c.isCompanion).map((c) => c.role));
   const characterItems = CHARACTER_ITEMS.filter((i) => i.ownedBy && activeRoles.has(i.ownedBy));
-  // All inventions ordered by function: weapon → gathering → production → survival → fire → defense → character
-  const ITEM_ORDER = [
-    "spear","waraxe",              // combat/weapon
-    "hatchet","basket","toolkit",  // gathering
-    "garden","fishtrap","greenhouse","smokehouse", // production/food
-    "healerkit","dryingrack",      // survival
-    "firepit","signal-fire","fireshrine","totem", // fire
-    "outpost","watchtower","stormshelter",         // defense/weather
-    "tidecache",                   // misc
-  ];
-  const allInventions = [
-    ...ITEM_ORDER.map(id => [...ITEMS, ...CHARACTER_ITEMS].find(i => i.id === id)).filter(Boolean) as (typeof ITEMS[number])[],
-    // anything not in the order list
-    ...[...ITEMS, ...characterItems].filter(i => !ITEM_ORDER.includes(i.id)),
-  ].filter((item, idx, arr) => arr.findIndex(x => x.id === item.id) === idx);
+  // Order: basic → special → character (tier badges on cards tell the player which is which)
+  const allInventions = [...BASIC_ITEMS, ...SPECIAL_ITEMS, ...characterItems];
 
   return (
     <div className="panel">
@@ -1409,9 +1401,6 @@ function ActionPanel({
         ) : (
           <p className="muted">All pawns assigned.</p>
         )}
-        <p className="muted small">
-          Select a pawn, then use the <strong>map</strong> to gather/explore, or a button below. <strong>2 pawns = safe</strong>, <strong>1 = risky</strong>.
-        </p>
       </div>
 
       <div className="subsection">
@@ -1423,7 +1412,7 @@ function ActionPanel({
       </div>
 
       <div className="subsection">
-        <h3>Hunt <span className="muted small">— explore tiles to discover beasts</span></h3>
+        <h3>Hunt</h3>
         {state.discoveredBeasts.length === 0 ? (
           <p className="muted small">No beasts discovered yet. Explore island tiles to find them.</p>
         ) : (
@@ -1458,8 +1447,8 @@ function ActionPanel({
                   )}
                   {!secure && (
                     <>
-                      <div className="muted small" style={{fontSize:10}}>
-                        {beastPawnIds.length}/2 hunters required
+                      <div className="muted small" style={{fontSize:12}}>
+                        {"👤".repeat(beastPawnIds.length)}{"○".repeat(2 - beastPawnIds.length)}
                       </div>
                       <button
                         className="tiny build-card-btn"
@@ -1500,8 +1489,11 @@ function ActionPanel({
             const canWood = canAfford(available, { wood: wCost });
             const canLeather = canAfford(available, { hide: lCost });
             const affordable = pawns === 1 ? true : (canWood || canLeather);
-            const level = t === "palisade" ? state.camp.palisadeLevel : t === "weapon" ? state.camp.weaponLevel : null;
-            const builtFlat = (t === "shelter" && state.camp.shelterBuilt) || (t === "roof" && state.camp.roofLevel > 0);
+            const level = t === "palisade" ? state.camp.palisadeLevel
+              : t === "weapon" ? state.camp.weaponLevel
+              : t === "roof" ? state.camp.roofLevel
+              : null;
+            const builtFlat = (t === "shelter" && state.camp.shelterBuilt);
             return (
               <BuildCard
                 key={t}
@@ -1531,7 +1523,6 @@ function ActionPanel({
             return <ItemCard key={item.id} item={item} state={state} available={available} pawnCount={ids.length} assignedPawnIds={ids} hasPawns={hasPawns} onAssign={onAssign} onUnassign={onUnassign} />;
           })}
         </div>
-        <p className="muted small">1 pawn = risky ({pct(ACTION_RISK.build.success)} success, {pct(ACTION_RISK.build.injury)} injury). 2 pawns = secure.</p>
       </div>
 
       <button className="primary" onClick={onResolve}>Resolve actions</button>
@@ -1563,20 +1554,21 @@ function ItemCard({
   const built = state.builtItems.includes(item.id);
   const secure = pawnCount >= 2;
   const canBuild = hasPawns && legal.ok && affordable && !secure && !built;
-  const costStr = Object.entries(item.cost).filter(([,n]) => (n??0) > 0)
-    .map(([r, n]) => `${n}${RESOURCE_ICON[r as ResourceType]}`).join(" ");
+  const itemCostStr = costStr(item.cost);
 
   // Requirements with ✓/✗ status
   const reqs: Array<{ label: string; met: boolean }> = [];
   if (item.requires) {
     for (const rid of item.requires) {
-      const name = [...ITEMS, ...CHARACTER_ITEMS].find((i) => i.id === rid)?.name ?? rid;
-      reqs.push({ label: name, met: state.builtItems.includes(rid) });
+      const dep = [...ITEMS, ...CHARACTER_ITEMS].find((i) => i.id === rid);
+      const icon = dep ? (ITEM_ICONS[rid] ?? "🛠️") : "🛠️";
+      const name = dep?.name ?? rid;
+      reqs.push({ label: `${icon} ${name}`, met: state.builtItems.includes(rid) });
     }
   }
   if (item.requiresBiome) {
     const discovered = biomeDiscovered(state, item.requiresBiome);
-    reqs.push({ label: `${BIOME_LABELS[item.requiresBiome]} biome`, met: discovered });
+    reqs.push({ label: `${BIOME_ICONS[item.requiresBiome]} ${BIOME_LABELS[item.requiresBiome]}`, met: discovered });
   }
 
   const icon = ITEM_ICONS[item.id] ?? "🛠️";
@@ -1602,7 +1594,7 @@ function ItemCard({
       )}
       {!built && (
         <div className={`build-card-cost ${!affordable && pawnCount !== 1 ? "cost-unmet" : ""}`}>
-          {costStr || "free"}
+          {itemCostStr || "free"}
         </div>
       )}
       {assignedPawnIds.length > 0 && (

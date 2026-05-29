@@ -182,7 +182,7 @@ const WOOD_PILE_COSTS = [1, 2, 3, 4, 5];
 
 function buildWoodPile(state: GameState): GameState {
   if (state.scenarioId !== "castaways") return state;
-  if (state.phase !== "action") return state;
+  // Available at any time (not just action phase), but only once per round.
   if (state.woodPileStage >= 5) return state;
   if (state.woodPileLastBuiltRound >= state.round) return state; // once per round
   const cost = WOOD_PILE_COSTS[state.woodPileStage];

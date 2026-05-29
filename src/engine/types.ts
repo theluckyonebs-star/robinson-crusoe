@@ -2,7 +2,7 @@
 // The engine is pure (no React / DOM). The UI reads this state and dispatches
 // GameActions through the reducer in `reducer.ts`.
 
-export type ResourceType = "wood" | "food" | "hide" | "fur";
+export type ResourceType = "wood" | "food" | "hide";
 
 export type Resources = Record<ResourceType, number>;
 

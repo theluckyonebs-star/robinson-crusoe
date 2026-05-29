@@ -30,7 +30,6 @@ export const RESOURCE_LABELS: Record<ResourceType, string> = {
   wood: "Wood",
   food: "Food",
   hide: "Leather",
-  fur: "Pelt",
 };
 
 export const PHASE_ORDER: Phase[] = [
@@ -86,7 +85,7 @@ export interface BuildSpec {
 // via scaledBuildCost(). These placeholders are used only for legality checks.
 export const BUILD_SPECS: Record<BuildTarget, BuildSpec> = {
   shelter: { label: "Shelter", cost: {}, repeatable: false },
-  roof: { label: "Roof", cost: {}, requiresShelter: true, repeatable: false },
+  roof: { label: "Roof", cost: {}, requiresShelter: true, repeatable: true, maxLevel: 6 },
   palisade: { label: "Palisade", cost: {}, repeatable: true, maxLevel: 6 },
   weapon: { label: "Weapon", cost: {}, repeatable: true, maxLevel: 6 },
 };

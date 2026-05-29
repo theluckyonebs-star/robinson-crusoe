@@ -76,7 +76,7 @@ export const EVENT_POOL: EventCard[] = [
     name: "Prowling Beast",
     story: "At dusk, two eyes glint from the treeline. Something large is patient.",
     immediate: { text: "It watches but does not attack — yet.", effect: { kind: "none" } },
-    resolve: { text: "Mount a hunt and drive it off.", requirement: { pawns: 2 }, reward: { text: "You wound it. It flees, leaving a pelt behind.", effect: { kind: "gainResource", resource: "fur", amount: 1 } } },
+    resolve: { text: "Mount a hunt and drive it off.", requirement: { pawns: 2 }, reward: { text: "You wound it. It flees, leaving hide behind.", effect: { kind: "gainResource", resource: "hide", amount: 1 } } },
     consequence: { text: "The beast slips into camp and mauls the weakest.", effect: { kind: "loseHealthOne", amount: 2 } },
   },
   {

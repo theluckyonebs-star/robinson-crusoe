@@ -39,13 +39,16 @@ export function buildIsLegal(state: GameState, target: BuildTarget): { ok: boole
   if (spec.requiresShelter && !state.camp.shelterBuilt) {
     return { ok: false, reason: "Requires a shelter first" };
   }
+  // Palisade also requires shelter (can't fortify what you haven't built).
+  if (target === "palisade" && !state.camp.shelterBuilt) {
+    return { ok: false, reason: "Build a Shelter first" };
+  }
   if (!spec.repeatable) {
-    const alreadyBuilt =
-      (target === "shelter" && state.camp.shelterBuilt) ||
-      (target === "roof" && state.camp.roofLevel > 0);
-    if (alreadyBuilt) return { ok: false, reason: "Already built" };
+    if (target === "shelter" && state.camp.shelterBuilt) return { ok: false, reason: "Already built" };
   } else if (spec.maxLevel !== undefined) {
-    const level = target === "palisade" ? state.camp.palisadeLevel : state.camp.weaponLevel;
+    const level = target === "palisade" ? state.camp.palisadeLevel
+      : target === "roof" ? state.camp.roofLevel
+      : state.camp.weaponLevel;
     if (level >= spec.maxLevel) return { ok: false, reason: "At maximum level" };
   }
   return { ok: true };
@@ -200,7 +203,7 @@ function buildStructure(s: GameState, a: Assignment, tag: string): { state: Game
   const costStr = useWood ? `${woodCost} wood` : `${leatherCost} leather`;
   const camp = { ...s.camp };
   if (target === "shelter") camp.shelterBuilt = true;
-  else if (target === "roof") camp.roofLevel = 1;
+  else if (target === "roof") camp.roofLevel += 1;
   else if (target === "palisade") camp.palisadeLevel += 1;
   else if (target === "weapon") camp.weaponLevel += 1;
   return {
