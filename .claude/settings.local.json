@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(git --version)",
+      "Bash(echo \"git: $\\(git --version 2>&1\\)\")",
+      "PowerShell($n = Get-Command node -ErrorAction SilentlyContinue; if \\($n\\) { \"node: \" + \\(node --version\\) } else { \"node: NOT FOUND\" }; $np = Get-Command npm -ErrorAction SilentlyContinue; if \\($np\\) { \"npm: \" + \\(npm --version\\) } else { \"npm: NOT FOUND\" })",
+      "PowerShell(winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements --silent)",
+      "PowerShell($env:Path = \"C:\\\\Program Files\\\\nodejs;\" + $env:Path; npm create vite@latest . -- --template react-ts 2>&1 | Out-String)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:5173\" -UseBasicParsing -TimeoutSec 5; \"STATUS: \" + $r.StatusCode; if \\($r.Content -match 'id=\"root\"'\\) { \"root div present\" } } catch { \"ERR: \" + $_.Exception.Message })",
+      "mcp__Claude_Preview__preview_start"
+    ]
+  }
+}
