@@ -222,12 +222,12 @@ export function clampMorale(value: number): number {
 
 export const TERRAIN_LABELS: Record<TerrainType, string> = {
   beach: "Beach",
-  forest: "Forest",
-  plain: "Plain",
+  forest: "Woodland",   // Plains biome
+  plain: "Plain",       // Plains biome
   hills: "Hills",
-  swamp: "Swamp",
-  lake: "Lake",
-  rocky: "Rocky Highland",
+  swamp: "Wetland",     // Rivers biome
+  lake: "Lake",         // Rivers biome
+  rocky: "Mountain",    // Mountains biome
 };
 
 /** Each terrain has up to one wood source and one food source, plus a trait. */
@@ -238,13 +238,13 @@ export interface TerrainDef {
 }
 
 export const TERRAIN: Record<TerrainType, TerrainDef> = {
-  beach: { wood: true, food: true, trait: "Shoreline" },
-  forest: { wood: true, food: false, trait: "Woodland" },
-  plain: { wood: false, food: true, trait: "Grassland" },
-  hills: { wood: true, food: true, trait: "Rugged" },
-  swamp: { wood: false, food: true, trait: "Wetland" },
-  lake: { wood: false, food: true, trait: "Freshwater" },
-  rocky: { wood: true, food: false, trait: "Highland" },
+  beach: { wood: true, food: true, trait: "Beach" },
+  forest: { wood: true, food: false, trait: "Plains" },   // Plains biome
+  plain: { wood: false, food: true, trait: "Plains" },    // Plains biome
+  hills: { wood: true, food: true, trait: "Hills" },
+  swamp: { wood: false, food: true, trait: "Rivers" },    // Rivers biome
+  lake: { wood: false, food: true, trait: "Rivers" },     // Rivers biome
+  rocky: { wood: true, food: false, trait: "Mountains" }, // Mountains biome
 };
 
 /** Resource counts (0 or 1 each) a terrain tile provides. */
@@ -254,11 +254,12 @@ export function terrainYield(t: TerrainType): { wood: number; food: number } {
 }
 
 /** Terrain types eligible for randomly-generated (non-camp) tiles. */
+// Hills have both wood + food. Adding more hills makes dual-resource tiles more common.
 export const ISLAND_TERRAINS: TerrainType[] = [
   "forest",
-  "forest",
   "plain",
-  "plain",
+  "hills",
+  "hills",
   "hills",
   "swamp",
   "lake",

@@ -238,6 +238,7 @@ export interface Item {
 export interface Beast {
   id: string;
   name: string;
+  icon: string;
   strength: number;
   weaponDull: number;
   food: number;

@@ -480,18 +480,16 @@ export function advancePhase(state: GameState): GameState {
           log: [...state.log, "You survived until rescue. The island is conquered!"],
         };
       }
-      // Roll the round over: advance first-player token, skipping companions.
-      const humanCount = state.characters.filter((c) => !c.isCompanion).length;
-      let firstPlayerIndex = (state.firstPlayerIndex + 1) % state.characters.length;
-      let tries = 0;
-      while (state.characters[firstPlayerIndex]?.isCompanion && tries < humanCount) {
-        firstPlayerIndex = (firstPlayerIndex + 1) % state.characters.length;
-        tries++;
-      }
+      // Rotate the first-player token among HUMAN characters only (never companions).
+      const humans = state.characters.filter((c) => !c.isCompanion);
+      const currentHumanPos = humans.findIndex((h) => h.id === state.characters[state.firstPlayerIndex]?.id);
+      const nextHuman = humans[(currentHumanPos + 1) % humans.length];
+      const firstPlayerIndex = state.characters.findIndex((c) => c.id === nextHuman?.id);
+      const safeFirstPlayer = firstPlayerIndex >= 0 ? firstPlayerIndex : 0;
       const next = {
         ...state,
         round: state.round + 1,
-        firstPlayerIndex,
+        firstPlayerIndex: safeFirstPlayer,
         usedAbilities: [],
         log: [...state.log, `=== Round ${state.round + 1} ===`],
       };

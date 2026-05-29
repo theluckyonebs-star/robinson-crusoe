@@ -97,12 +97,11 @@ function effectLabel(e: Effect): string {
 
 function assignmentCost(state: GameState, a: Assignment): Partial<Resources> {
   if (a.action === "build") {
-    if (a.itemId) return ITEMS.find((i) => i.id === a.itemId)?.cost ?? {};
+    if (a.itemId) return [...ITEMS, ...CHARACTER_ITEMS].find((i) => i.id === a.itemId)?.cost ?? {};
     if (a.buildTarget) {
-      let cost = BUILD_SPECS[a.buildTarget].cost;
-      const carp = a.pawnIds.some((p) => characterOfPawn(state, p)?.role === "carpenter");
-      if (carp && (cost.wood ?? 0) > 0) cost = { ...cost, wood: Math.max(0, (cost.wood ?? 0) - 1) };
-      return cost;
+      // Dynamic build costs: prefer wood, fall back to leather.
+      const { wood: wCost, leather: lCost } = scaledBuildCost(state.playerCount);
+      return state.resources.wood >= wCost ? { wood: wCost } : { hide: lCost };
     }
   }
   if (a.action === "resolveThreat") {
@@ -254,6 +253,7 @@ export default function App() {
   const [tileActionChoice, setTileActionChoice] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<ResolutionStep[] | null>(null);
   const [weatherOverlay, setWeatherOverlay] = useState<WeatherStep[] | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
   const lastWeatherId = useRef(state.weatherId);
   // All hooks MUST be declared before any conditional return (Rules of Hooks).
   const lastResId = useRef(state.resolutionId);
@@ -457,8 +457,23 @@ export default function App() {
               onUnassign={(p) => dispatch({ type: "UNASSIGN_PAWN", pawnId: p })}
             />
           )}
-          <Log entries={state.log} />
+          <button className="log-toggle" onClick={() => setLogOpen(true)} title="Open game log">
+            📋 <span className="log-toggle-label">Log</span>
+            <span className="log-toggle-count">{state.log.length}</span>
+          </button>
         </div>
+
+        {logOpen && (
+          <div className="log-overlay" onClick={() => setLogOpen(false)}>
+            <div className="log-overlay-panel" onClick={(e) => e.stopPropagation()}>
+              <div className="log-overlay-header">
+                <h2>Game Log</h2>
+                <button onClick={() => setLogOpen(false)}>✕ Close</button>
+              </div>
+              <Log entries={state.log} />
+            </div>
+          </div>
+        )}
       </div>
 
       {overlay && <ResolutionOverlay steps={overlay} onClose={() => setOverlay(null)} />}
@@ -689,7 +704,7 @@ const TERRAIN_COLOR: Record<string, string> = {
   lake: "#3f6e8c",
   rocky: "#8a8f96",
 };
-const HEX_SIZE = 34;
+const HEX_SIZE = 26;
 
 function hexPoints(cx: number, cy: number, size: number): string {
   return Array.from({ length: 6 }, (_, i) => {
@@ -760,74 +775,83 @@ function HexMap({
         </p>
       )}
       <svg className="hexmap" viewBox={`${minX} ${minY} ${vbW} ${vbH}`} role="img" aria-label="island map">
+        {/* Pass 1: hexagon bases only (so icons aren't hidden under neighboring tiles) */}
+        {centers.map(({ t, x, y }) => {
+          const key = tileKey(t.q, t.r);
+          const fill = t.explored ? TERRAIN_COLOR[t.terrain] : "#1b242e";
+          const act = actionable(t);
+          const yld = terrainYield(t.terrain);
+          return (
+            <polygon
+              key={`hex-${key}`}
+              points={hexPoints(x, y, HEX_SIZE - 1.5)}
+              fill={fill}
+              stroke={t.hasCamp ? "#d9a441" : act ? "#e8edf2" : "#0d141b"}
+              strokeWidth={t.hasCamp ? 3 : act ? 2 : 1.5}
+              className={act ? "hex-actionable" : ""}
+              onClick={() => onTileClick(t)}
+              style={{ cursor: act ? "pointer" : "default" }}
+            >
+              <title>
+                {t.explored
+                  ? `${TERRAIN_LABELS[t.terrain]} · ${TERRAIN[t.terrain].trait} biome · ${yld.wood} wood, ${yld.food} food`
+                  : "Unexplored — click to explore"}
+              </title>
+            </polygon>
+          );
+        })}
+        {/* Pass 2: all overlays (icons, text, dots, unassign) rendered on top */}
         {centers.map(({ t, x, y }) => {
           const key = tileKey(t.q, t.r);
           const yld = terrainYield(t.terrain);
-          const fill = t.explored ? TERRAIN_COLOR[t.terrain] : "#1b242e";
-          const act = actionable(t);
           const prodText = [yld.wood > 0 ? `${yld.wood}🪵` : "", yld.food > 0 ? `${yld.food}🍖` : ""].filter(Boolean).join(" ");
           const pawnCount = pawnsByTile.get(key) ?? 0;
+          const gCount = gatherDotsByTile.get(key) ?? 0;
+          const eCount = exploreDotsByTile.get(key) ?? 0;
           return (
-            <g key={key} className={act ? "hex-actionable" : ""} onClick={() => onTileClick(t)} style={{ cursor: act ? "pointer" : "default" }}>
-              <polygon
-                points={hexPoints(x, y, HEX_SIZE - 1.5)}
-                fill={fill}
-                stroke={t.hasCamp ? "#d9a441" : act ? "#e8edf2" : "#0d141b"}
-                strokeWidth={t.hasCamp ? 3 : act ? 2 : 1.5}
-              >
-                <title>
-                  {t.explored ? `${TERRAIN_LABELS[t.terrain]} (${TERRAIN[t.terrain].trait}) — ${yld.wood} wood, ${yld.food} food` : "Unexplored — click to explore"}
-                </title>
-              </polygon>
+            <g key={`ov-${key}`} style={{ pointerEvents: "none" }}>
               {t.hasCamp ? (
                 <>
-                  <text x={x} y={y - 2} textAnchor="middle" fontSize={16}>🏕️</text>
-                  <text x={x} y={y + 11} textAnchor="middle" fontSize={8} fontWeight={700} fill="#fff">CAMP</text>
+                  <text x={x} y={y + 2} textAnchor="middle" fontSize={13}>🏕️</text>
+                  <text x={x} y={y + 12} textAnchor="middle" fontSize={7} fontWeight={700} fill="#fff">CAMP</text>
                 </>
               ) : t.explored ? (
                 <>
-                  <text x={x} y={y + 4} textAnchor="middle" fontSize={11} fill="#fff">{prodText}</text>
+                  <text x={x} y={y + 4} textAnchor="middle" fontSize={9} fill="#fff">{prodText}</text>
                   {t.beast && !state.discoveredBeasts.find(db => db.instanceId.endsWith(key)) && (
-                    <text x={x + HEX_SIZE - 10} y={y - HEX_SIZE + 28} textAnchor="middle" fontSize={13}>
-                      <title>A {t.beast.name} lairs here — assign a pawn to hunt</title>
-                      🐗
+                    <text x={x} y={y - HEX_SIZE + 14} textAnchor="middle" fontSize={11}>
+                      <title>A {t.beast.name} lairs here — discover it by exploring this tile</title>
+                      {(t.beast as import("@engine").Beast & { icon: string }).icon ?? "🐗"}
                     </text>
                   )}
-                  {t.treasures.length > 0 && (() => {
-                    const unclaimed = t.treasures.filter((tr) => !tr.claimed).length;
-                    const total = t.treasures.length;
-                    const title = unclaimed > 0 ? `${unclaimed} treasure${unclaimed > 1 ? "s" : ""} here` : "All treasures claimed";
-                    return (
-                      <text x={x + HEX_SIZE - 10} y={y - HEX_SIZE + 18} textAnchor="middle" fontSize={11} opacity={unclaimed === 0 ? 0.3 : 1}>
-                        <title>{title}</title>
-                        {"📦".repeat(unclaimed) + "⬜".repeat(total - unclaimed)}
-                      </text>
-                    );
-                  })()}
+                  {t.treasures.some(tr => !tr.claimed) && (
+                    <text x={x + HEX_SIZE - 6} y={y + 4} textAnchor="middle" fontSize={10}>
+                      <title>{t.treasures.filter(tr => !tr.claimed).length} treasure(s) here</title>
+                      📦
+                    </text>
+                  )}
                 </>
               ) : (
-                <text x={x} y={y + 6} textAnchor="middle" fontSize={18} fill="#5a6b7a">?</text>
+                <text x={x} y={y + 5} textAnchor="middle" fontSize={14} fill="#5a6b7a">?</text>
               )}
               {pawnCount > 0 && (() => {
-                const gCount = gatherDotsByTile.get(key) ?? 0;
-                const eCount = exploreDotsByTile.get(key) ?? 0;
-                const dotY = y + (t.hasCamp ? 22 : 20);
-                const dotSpacing = 9;
+                const dotSpacing = 7;
                 const allDots: Array<{ color: string }> = [
-                  ...Array(gCount).fill({ color: "#d9a441" }),   // yellow = gather
-                  ...Array(eCount).fill({ color: "#4a8c5c" }),   // green  = explore
+                  ...Array(gCount).fill({ color: "#d9a441" }),
+                  ...Array(eCount).fill({ color: "#4a8c5c" }),
                 ];
                 const totalW = (allDots.length - 1) * dotSpacing;
+                const dotY = y + HEX_SIZE - 8;
                 return (
                   <g>
                     {allDots.map((d, i) => (
-                      <circle key={i} cx={x - totalW / 2 + i * dotSpacing} cy={dotY} r={4} fill={d.color} stroke="#0d141b" strokeWidth={1} />
+                      <circle key={i} cx={x - totalW / 2 + i * dotSpacing} cy={dotY} r={3.5} fill={d.color} stroke="#0d141b" strokeWidth={0.8} />
                     ))}
                     {interactive && onTileUnassign && (
                       <text
-                        x={x + HEX_SIZE - 8} y={dotY + 4}
-                        textAnchor="middle" fontSize={12} fill="#c75c4a"
-                        style={{ cursor: "pointer" }}
+                        x={x} y={dotY - 8}
+                        textAnchor="middle" fontSize={10} fill="#c75c4a" fontWeight={700}
+                        style={{ cursor: "pointer", pointerEvents: "all" }}
                         onClick={(e) => { e.stopPropagation(); onTileUnassign(key); }}
                       >
                         ✕
@@ -840,7 +864,7 @@ function HexMap({
           );
         })}
       </svg>
-      <p className="muted small">Gathering takes a tile's resource (max 1 wood + 1 food per tile). 1 pawn = risky, 2 = safe.</p>
+      <p className="muted small">Click a tile to gather/explore. 1 pawn = risky, 2 = safe.</p>
     </div>
   );
 }
@@ -1021,7 +1045,7 @@ function EventPhasePanel({ state, onContinue }: { state: GameState; onContinue: 
         </div>
       )}
       {fellOff && <div className="falloff-alert">⚠ {fellOff}</div>}
-      <button className="primary" onClick={onContinue}>{continueLabel(state)}</button>
+      <button className="primary small-primary" style={{marginTop:6}} onClick={onContinue}>{continueLabel(state)}</button>
     </div>
   );
 }
@@ -1030,13 +1054,15 @@ function PhasePanel({ state, onContinue }: { state: GameState; onContinue: () =>
   const title = state.phase === "actionDone" ? "Actions resolved" : `${PHASE_LABELS[state.phase]} phase`;
   return (
     <div className="panel">
-      <h2>{title}</h2>
+      <div className="panel-header-row">
+        <h2 style={{margin:0}}>{title}</h2>
+        <button className="primary small-primary" onClick={onContinue}>{continueLabel(state)}</button>
+      </div>
       <ul className="summary">
         {state.phaseSummary.map((line, i) => (
           <li key={i} className={line.startsWith("  ") ? "sub" : ""}>{line.trim()}</li>
         ))}
       </ul>
-      <button className="primary" onClick={onContinue}>{continueLabel(state)}</button>
     </div>
   );
 }
@@ -1203,13 +1229,9 @@ function BuildCard({
         <div className="build-card-locked">{legal.reason}</div>
       ) : secure ? (
         <div className="build-card-locked">✓ Secured</div>
-      ) : (
-        <div className="build-card-cost">
-          <span className={affordable ? "" : "cost-unmet"}>{wCost}🪵</span>
-          <span className="muted"> or </span>
-          <span className={affordable ? "" : "cost-unmet"}>{lCost}🧤</span>
-        </div>
-      )}
+      ) : !affordable ? (
+        <div className="build-card-locked">✗ Not enough resources</div>
+      ) : null}
       {assignedPawnIds.length > 0 && (
         <div className="card-assigned-pawns">
           {assignedPawnIds.map((p) => (
@@ -1378,9 +1400,10 @@ function ActionPanel({
               const beastPawnIds = beastAsn?.pawnIds ?? [];
               const secure = beastPawnIds.length >= 2;
               const wounds = Math.max(0, b.strength - state.camp.weaponLevel);
+              const bIcon = (b as typeof b & { icon?: string }).icon ?? "🐗";
               return (
                 <div key={b.instanceId} className={`build-card ${secure ? "secured" : ""}`}>
-                  <div className="build-card-icon">🐗</div>
+                  <div className="build-card-icon">{bIcon}</div>
                   <div className="build-card-name">{b.name}</div>
                   <div className="build-card-desc">
                     Strength {b.strength} · dulls −{b.weaponDull}⚔️<br/>
@@ -1401,13 +1424,18 @@ function ActionPanel({
                     </div>
                   )}
                   {!secure && (
-                    <button
-                      className="tiny build-card-btn"
-                      disabled={!hasPawns}
-                      onClick={() => onAssign("hunt", { beastInstanceId: b.instanceId })}
-                    >
-                      {beastPawnIds.length === 1 ? "🔒→🔓 Secure" : "🏹 Hunt"}
-                    </button>
+                    <>
+                      <div className="muted small" style={{fontSize:10}}>
+                        {beastPawnIds.length}/2 hunters required
+                      </div>
+                      <button
+                        className="tiny build-card-btn"
+                        disabled={!hasPawns}
+                        onClick={() => onAssign("hunt", { beastInstanceId: b.instanceId })}
+                      >
+                        {beastPawnIds.length === 1 ? "🏹 Add 2nd hunter" : "🏹 Assign hunter"}
+                      </button>
+                    </>
                   )}
                 </div>
               );

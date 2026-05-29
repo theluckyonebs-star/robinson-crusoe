@@ -31,12 +31,12 @@ export function generateTreasures(
   seed: number,
   tileKey: string,
 ): { treasures: TileTreasure[]; seed: number } {
-  // 50% none, 30% one, 15% two, 5% three
+  // 70% none, 20% one, 8% two, 2% three (less common than before)
   const r1 = nextRandom(seed);
   let count = 0;
-  if (r1.value < 0.05) count = 3;
-  else if (r1.value < 0.20) count = 2;
-  else if (r1.value < 0.50) count = 1;
+  if (r1.value < 0.02) count = 3;
+  else if (r1.value < 0.10) count = 2;
+  else if (r1.value < 0.30) count = 1;
 
   const treasures: TileTreasure[] = [];
   let s = r1.seed;

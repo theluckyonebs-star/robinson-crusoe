@@ -385,15 +385,13 @@ button.tiny.commit {
 
 .columns {
   display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 16px;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
   align-items: start;
 }
 
-@media (max-width: 800px) {
-  .columns {
-    grid-template-columns: 1fr;
-  }
+.main-col {
+  min-width: 0;
 }
 
 .characters {
@@ -428,6 +426,24 @@ button.tiny.commit {
 
 .panel h2 {
   margin-top: 0;
+}
+
+.panel-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+button.small-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  font-weight: 700;
+  font-size: 12px;
+  padding: 5px 10px;
+  white-space: nowrap;
 }
 
 .subsection {
@@ -779,6 +795,60 @@ button.tiny {
 .build-card-btn {
   width: 100%;
   margin-top: 4px;
+}
+
+/* ---- Log toggle button ---- */
+.log-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 6px;
+  width: 48px;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--muted);
+  transition: background 0.1s;
+  flex-shrink: 0;
+}
+.log-toggle:hover { background: var(--panel-2); color: var(--ink); }
+.log-toggle-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; }
+.log-toggle-count { font-size: 10px; font-weight: 700; color: var(--accent); }
+
+/* ---- Log overlay panel ---- */
+.log-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10,16,22,0.6);
+  z-index: 200;
+  display: flex;
+  justify-content: flex-end;
+}
+.log-overlay-panel {
+  background: var(--panel);
+  width: min(380px, 90vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 32px rgba(0,0,0,0.4);
+}
+.log-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.log-overlay-header h2 { margin: 0; font-size: 18px; }
+.log-overlay-panel .log {
+  flex: 1;
+  border-radius: 0;
+  max-height: none;
+  height: 100%;
 }
 
 /* ---- Pawn circles ---- */

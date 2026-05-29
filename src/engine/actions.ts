@@ -351,17 +351,22 @@ function drawAdventure(s: GameState, family: RiskAction, actorIdx: number): { st
 function resolveSafe(s: GameState, a: Assignment): ActionResult {
   switch (a.action) {
     case "rest": {
-      const idxs = a.pawnIds.map((p) => charIndexOfPawn(s, p)).filter((i) => i >= 0);
-      const set = new Set(idxs);
+      // Each pawn heals its owner once (2 cooks = cook heals 2; cook+carp = each heals 1).
+      const healCounts = new Map<number, number>();
+      for (const pawnId of a.pawnIds) {
+        const idx = charIndexOfPawn(s, pawnId);
+        if (idx >= 0) healCounts.set(idx, (healCounts.get(idx) ?? 0) + 1);
+      }
       const names: string[] = [];
       const characters = s.characters.map((c, i) => {
-        if (set.has(i) && c.health > 0) {
-          names.push(c.name);
-          return { ...c, health: Math.min(c.maxHealth, c.health + REST_HEAL) };
+        const heals = healCounts.get(i) ?? 0;
+        if (heals > 0 && c.health > 0) {
+          names.push(`${c.name} +${heals * REST_HEAL}`);
+          return { ...c, health: Math.min(c.maxHealth, c.health + heals * REST_HEAL) };
         }
         return c;
       });
-      return { state: { ...s, characters }, lines: [`Rest: ${names.join(", ") || "no one"} recovered ${REST_HEAL} health.`] };
+      return { state: { ...s, characters }, lines: [`Rest: ${names.join(", ") || "no one"} recovered.`] };
     }
 
     case "arrange": {
@@ -390,9 +395,12 @@ function resolveSafe(s: GameState, a: Assignment): ActionResult {
 }
 
 function resolveHunt(s: GameState, a: Assignment): ActionResult {
+  if (a.pawnIds.length < 2) {
+    return { state: s, lines: ["Hunt: you need at least 2 people to hunt safely — assign another pawn."] };
+  }
   const beast = a.beastInstanceId
     ? s.discoveredBeasts.find((b) => b.instanceId === a.beastInstanceId)
-    : s.discoveredBeasts[0]; // fallback: fight first available
+    : s.discoveredBeasts[0];
   if (!beast) return { state: s, lines: ["Hunt: no beasts available — explore tiles to find them."] };
 
   const weapon = s.camp.weaponLevel + s.bonusAttackThisRound;

@@ -38,7 +38,6 @@ function ringDistance(q: number, r: number): number {
 /** Build the island: camp at the centre, terrain seeded around it.
  *  Accepts an optional beastPool for tile beast generation. */
 export function generateIsland(seed: number, beastPool: Beast[] = []): { tiles: Tile[]; seed: number } {
-  const remainingBeasts = [...beastPool];
   const coords: Axial[] = [];
   for (let q = -ISLAND_RADIUS; q <= ISLAND_RADIUS; q++) {
     for (let r = -ISLAND_RADIUS; r <= ISLAND_RADIUS; r++) {
@@ -58,11 +57,11 @@ export function generateIsland(seed: number, beastPool: Beast[] = []): { tiles: 
     const key = tileKey(q, r);
     const tRes = generateTreasures(s, key);
     s = tRes.seed;
-    // 50% chance of a beast on this tile (with replacement — duplicates allowed).
+    // 65% chance of a beast on this tile (pick with replacement).
     let tileBeast: Beast | undefined;
     const beastRoll = nextRandom(s);
     s = beastRoll.seed;
-    if (beastRoll.value < 0.5 && beastPool.length > 0) {
+    if (beastRoll.value < 0.65 && beastPool.length > 0) {
       const pickRoll = nextRandom(s);
       s = pickRoll.seed;
       const idx = Math.floor(pickRoll.value * beastPool.length);
